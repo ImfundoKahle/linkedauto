@@ -17,10 +17,7 @@ This tool is a Python script that allows you to automatically send connection re
 
 ### Screenshots
 
-<!-- Add your screenshots here -->
-<!-- Example format:
-![Feature Description](path/to/screenshot.png)
--->
+![image](screenshot.jpeg)
 
 ## Prerequisites
 
