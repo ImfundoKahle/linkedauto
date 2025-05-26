@@ -312,8 +312,30 @@ class LinkedInConnector:
                 # Click login button
                 login_button = self.wait.until(EC.element_to_be_clickable((By.XPATH, self.LOGIN_BUTTON_XPATH)))
                 login_button.click()
+                
+                # Add a small delay to allow error messages to appear
+                time.sleep(2)
+                
+                # Check for login errors first - check both English and Turkish error messages
+                error_messages = [
+                    {"id": "error-for-password", "en": "Wrong password. Please try again.", "tr": "Hatalı şifre. Lütfen tekrar deneyin."},
+                    {"id": "error-for-username", "en": "Invalid email address. Please try again.", "tr": "Geçersiz e-posta adresi. Lütfen tekrar deneyin."},
+                    {"id": "error-for-password", "en": "Incorrect email or password.", "tr": "Hatalı e-posta veya şifre."},
+                    {"id": "error-for-username", "en": "Incorrect email or password.", "tr": "Hatalı e-posta veya şifre."}
+                ]
 
-                # Check for security check or 2FA
+                for error in error_messages:
+                    try:
+                        error_element = self.driver.find_element(By.ID, error["id"])
+                        if error_element and error_element.is_displayed():
+                            error_text = error_element.text
+                            if error["en"].lower() in error_text.lower() or error["tr"] in error_text:
+                                print_error(f"\n{error['en']}")
+                                return False
+                    except NoSuchElementException:
+                        continue
+
+                # Check for security check or 2FA only if no login errors
                 security_check_phrases = [
                     "checkpoint/challenge", 
                     "security/challenge",
@@ -343,21 +365,6 @@ class LinkedInConnector:
                     
                     print_warning("\nSecurity check timed out. Please try again.")
                     return False
-                
-                # Check for login errors
-                error_messages = {
-                    "error-for-password": "Incorrect password. Please try again.",
-                    "error-for-username": "Invalid email address. Please try again."
-                }
-
-                for error_id, error_message in error_messages.items():
-                    try:
-                        error_element = self.driver.find_element(By.ID, error_id)
-                        if error_element.is_displayed():
-                            print_error(f"\n{error_message}")
-                            return False
-                    except NoSuchElementException:
-                        continue
 
                 # If we're logged in, return success
                 if self._is_logged_in():
