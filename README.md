@@ -1,3 +1,5 @@
+![image](logo.png)
+
 # LinkedIn Connection Automation Tool
 
 This tool is a Python script that allows you to automatically send connection requests on LinkedIn. You can search with your specified keywords and send connection requests from the search results.
