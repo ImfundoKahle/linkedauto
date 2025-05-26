@@ -917,13 +917,7 @@ def main():
 
     # --- LEGAL DISCLAIMER ---
     print_highlight("\n" + "-"*80)
-    print_warning("IMPORTANT: This is an educational demonstration tool only.")
-    print_warning("By using this software, you acknowledge that:")
-    print_warning("• You understand and accept LinkedIn's Terms of Service")
-    print_warning("• You are responsible for any actions taken with this tool")
-    print_warning("• Your LinkedIn account may be restricted for automation")
-    print_warning("• The developer assumes no liability for account restrictions")
-    print_warning("• Always use responsibly and respect connection limits")
+    print_warning("⚠️ This tool is for educational purposes only. Avoid violating LinkedIn's Terms of Service. You are responsible for any consequences that may arise from using this tool.")
     print_highlight("-"*80 + "\n")
     # --- LEGAL DISCLAIMER END ---
 
