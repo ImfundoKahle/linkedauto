@@ -15,6 +15,13 @@ This tool is a Python script that allows you to automatically send connection re
 - Multi-platform support (Windows, macOS, Linux)
 - Multi-language support (English, Turkish)
 
+### Screenshots
+
+<!-- Add your screenshots here -->
+<!-- Example format:
+![Feature Description](path/to/screenshot.png)
+-->
+
 ## Prerequisites
 
 - Python 3.7 or higher
