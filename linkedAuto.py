@@ -984,7 +984,7 @@ def main():
         show_help()
 
     # Default values
-    default_keywords = "recruiter OR talent acquisition OR HR"
+    default_keywords = "python developer"
     default_max_requests = 30
     default_note = ""  # Empty by default since we're not using notes
 
