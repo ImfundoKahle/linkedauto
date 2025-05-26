@@ -102,7 +102,8 @@ This tool operates using the official LinkedIn web interface with the following 
 
 - [ ] 📥 Manage incoming connection requests
 - [ ] 🌍 Support for additional languages
-- [ ] 🤖 AI-powered connection message generation
+- [ ] 🤖 AI-powered automatic job application (with resume and cover letter)
+- [ ] ...
 
 ## 📜 License
 
