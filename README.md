@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="logo.png" alt="LinkedAuto Logo" width="200">
-  <h1>LinkedAuto</h1>
+  <img src="logo.png" alt="LinkedAuto Logo">
+  
   <p>🤖 A powerful Python automation tool for LinkedIn connection requests</p>
   
   [![Python](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
@@ -101,7 +101,6 @@ This tool operates using the official LinkedIn web interface with the following 
 ## 🗺️ Roadmap
 
 - [ ] 📥 Manage incoming connection requests
-- [ ] 📊 Analytics dashboard for connection statistics
 - [ ] 🌍 Support for additional languages
 - [ ] 🤖 AI-powered connection message generation
 
