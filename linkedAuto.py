@@ -1,5 +1,7 @@
+# https://www.virustotal.com/gui/file/8dc1415cbb828fc5198d370fff00f30012439be772d776f407a7217bc217b27f?nocache=1
+
 import os
-import sys # sys.argv kontrolü için eklendi
+import sys 
 import time
 import random
 import logging
@@ -79,16 +81,24 @@ class LinkedInConnector:
     MODAL_CUSTOM_MESSAGE_ID = 'custom-message'
     MODAL_SEND_BUTTON_XPATH = '//button[contains(@aria-label, "Send invitation") or contains(@aria-label, "Send now") or contains(@aria-label, "Send") or contains(@aria-label, "Gönder")] | //button[.//span[text()="Gönder" or text()="Send"]]'
 
-    def __init__(self, headless=False, connection_note=None):
-        """Initialize the LinkedIn connector"""
-        # Validate connection note
-        if connection_note:
+    def __init__(self, headless=False, connection_note=None, use_notes=False):
+        """Initialize the LinkedIn connector
+        
+        Args:
+            headless (bool): Run browser in headless mode
+            connection_note (str, optional): Custom connection note to include with requests
+            use_notes (bool): Whether to send connection requests with notes (default: False)
+        """
+        self.use_notes = use_notes
+        
+        # Validate connection note if provided
+        if connection_note and use_notes:
             if len(connection_note) > 300:
                 print_warning("Connection note is too long. It will be truncated to 300 characters.")
                 connection_note = connection_note[:300]
             self.connection_note = connection_note
         else:
-            self.connection_note = "Hello, I would be happy if you accept my connection request."
+            self.connection_note = None
         
         self._limit_reported = False
         self.driver = None
@@ -280,10 +290,12 @@ class LinkedInConnector:
         return False
 
     def login(self):
-        """Login to LinkedIn"""
+        """Login to LinkedIn with manual security check and 2FA handling"""
         try:
             if self.email and self.password:
                 # Console login
+                print_info("\n=== ATTENTION ===")
+                print_info("Starting login process. Please be ready to complete any security checks.")
                 self.driver.get("https://www.linkedin.com/login")
                 time.sleep(2)
                 
@@ -301,21 +313,37 @@ class LinkedInConnector:
                 login_button = self.wait.until(EC.element_to_be_clickable((By.XPATH, self.LOGIN_BUTTON_XPATH)))
                 login_button.click()
 
-                # Wait for either success, error, or 2FA
-                try:
-                    WebDriverWait(self.driver, 10).until(
-                        EC.any_of(
-                            EC.url_contains("feed"),
-                            EC.url_contains("dashboard"),
-                            EC.presence_of_element_located((By.ID, "error-for-password")),
-                            EC.presence_of_element_located((By.ID, "error-for-username")),
-                            EC.presence_of_element_located((By.XPATH, self.TWO_FA_INPUT_XPATH))
-                        )
-                    )
-                except TimeoutException:
-                    print_error("Login attempt timed out. Please try again.")
+                # Check for security check or 2FA
+                security_check_phrases = [
+                    "checkpoint/challenge", 
+                    "security/challenge",
+                    "checkpoint/"
+                ]
+                
+                if any(phrase in self.driver.current_url for phrase in security_check_phrases) or \
+                   self.driver.find_elements(By.XPATH, self.TWO_FA_INPUT_XPATH):
+                    
+                    print_info("\n=== SECURITY CHECK OR 2FA REQUIRED ===")
+                    print_info("Please complete the security check or 2FA verification in the browser.")
+                    print_info("1. Complete any security checks (CAPTCHA, email verification, etc.)")
+                    print_info("2. If prompted for 2FA, enter the code from your authenticator app or email")
+                    print_info("3. Wait until you are fully logged in to LinkedIn")
+                    print_info("4. The bot will continue automatically once verification is complete")
+                    print_info("Time limit: 5 minutes\n")
+                    
+                    # Wait for user to complete the verification
+                    max_wait_minutes = 5
+                    start_time = time.time()
+                    
+                    while time.time() - start_time < (max_wait_minutes * 60):
+                        if self._is_logged_in():
+                            print_success("\nSecurity check completed successfully!")
+                            return True
+                        time.sleep(5)
+                    
+                    print_warning("\nSecurity check timed out. Please try again.")
                     return False
-
+                
                 # Check for login errors
                 error_messages = {
                     "error-for-password": "Incorrect password. Please try again.",
@@ -326,43 +354,55 @@ class LinkedInConnector:
                     try:
                         error_element = self.driver.find_element(By.ID, error_id)
                         if error_element.is_displayed():
-                            print_error(error_message)
+                            print_error(f"\n{error_message}")
                             return False
                     except NoSuchElementException:
                         continue
 
                 # If we're logged in, return success
                 if self._is_logged_in():
-                    print_success("Login successful!")
+                    print_success("\nLogin successful!")
                     return True
-
-                # Check for 2FA
-                if self.driver.find_elements(By.XPATH, self.TWO_FA_INPUT_XPATH):
-                    if self.wait_for_2fa():
-                        print_success("Login successful!")
-                        return True
-                    else:
-                        print_error("2FA verification failed or timed out.")
-                        return False
 
             else:
                 # Browser login - wait for user to login manually
-                print_info("Waiting for you to login manually...")
-                while not self._is_logged_in():
-                    time.sleep(2)
-                print_success("Login successful!")
-                return True
+                print_info("\n=== MANUAL LOGIN REQUIRED ===")
+                print_info("Please login to LinkedIn in the browser that just opened.")
+                print_info("1. Enter your credentials")
+                print_info("2. Complete any security checks or 2FA verification")
+                print_info("3. The bot will continue automatically once you're logged in")
+                print_info("Time limit: 5 minutes\n")
+                
+                self.driver.get("https://www.linkedin.com/login")
+                
+                # Wait for user to complete login
+                max_wait_minutes = 5
+                start_time = time.time()
+                
+                while time.time() - start_time < (max_wait_minutes * 60):
+                    if self._is_logged_in():
+                        print_success("\nLogin successful!")
+                        return True
+                    time.sleep(5)
+                
+                print_warning("\nLogin timed out. Please try again.")
+                return False
 
-            print_error("Login failed for unknown reason.")
+            print_error("\nLogin failed for unknown reason.")
             return False
 
         except Exception as e:
-            print_error(f"Login failed: {str(e)}")
+            print_error(f"\nLogin failed: {str(e)}")
             logging.error(f"Login error: {str(e)}")
             return False
 
     def send_connection_request_on_profile_page(self, profile_url, message=None):
-        """Send a connection request from a specific profile page"""
+        """Send a connection request from a specific profile page
+        
+        Args:
+            profile_url (str): URL of the profile to connect with
+            message (str, optional): Custom message to include with the connection request
+        """
         try:
             logging.info(f"Navigating to profile: {profile_url}")
             self.driver.get(profile_url)
@@ -379,7 +419,9 @@ class LinkedInConnector:
             logging.info("Connect button clicked on profile page.")
             time.sleep(random.uniform(1, 3))
 
-            self._handle_connection_modal(custom_message=message or self.connection_note)
+            # Only pass the message if notes are enabled
+            custom_message = message if self.use_notes else None
+            self._handle_connection_modal(custom_message=custom_message)
 
             logging.info(f"Connection request sent (profile page): {profile_url}")
             time.sleep(random.uniform(2, 4))
@@ -507,7 +549,7 @@ class LinkedInConnector:
                                 logging.warning("Connection modal could not be handled or request could not be sent.")
                                 self._close_any_generic_modal()
 
-                            wait_time = 10
+                            wait_time = 1
                             logging.info(f"Waiting {wait_time} seconds for next request...")
                             time.sleep(wait_time)
                         else:
@@ -568,45 +610,117 @@ class LinkedInConnector:
 
 
     def _handle_connection_modal(self, custom_message=None):
-        """Handle the connection modal: add note (if desired) and send."""
+        """Handle the connection modal and send the connection request.
+        
+        Args:
+            custom_message (str, optional): Custom message to include with the connection request
+            
+        Returns:
+            bool: True if the connection request was sent successfully, False otherwise
+        """
         try:
-            self.short_wait.until(EC.presence_of_element_located((By.XPATH, '//div[contains(@class, "artdeco-modal--layer-default")]')))
+            # Wait for the modal to appear
+            self.short_wait.until(EC.presence_of_element_located(
+                (By.XPATH, '//div[contains(@class, "artdeco-modal--layer-default")]')
+            ))
             
-            message_to_send = custom_message or self.connection_note
-
-            try:
-                add_note_button = self.short_wait.until(
-                    EC.element_to_be_clickable((By.XPATH, self.MODAL_ADD_NOTE_BUTTON_XPATH))
-                )
-                logging.info("Add note button found, clicking...")
-                add_note_button.click()
-                time.sleep(random.uniform(0.5, 1.5))
-
-                note_field = self.wait.until(
-                    EC.presence_of_element_located((By.XPATH, f"//textarea[@id='{self.MODAL_CUSTOM_MESSAGE_ID}' or @name='message']"))
-                )
-                logging.info(f"Adding note: '{message_to_send[:30]}...'")
-                note_field.send_keys(message_to_send)
-                time.sleep(random.uniform(0.5, 1))
-            except TimeoutException:
-                logging.info("Add note button not found. Looking for direct message field or send button.")
+            # Only add a note if notes are explicitly enabled and we have a message to send
+            if self.use_notes and (custom_message or self.connection_note):
+                message_to_send = custom_message or self.connection_note
                 try:
-                    note_field_elements = self.driver.find_elements(By.XPATH, f"//textarea[@id='{self.MODAL_CUSTOM_MESSAGE_ID}' or @name='message']")
-                    if note_field_elements and note_field_elements[0].is_displayed():
-                        logging.info(f"Adding note directly: '{message_to_send[:30]}...'")
-                        note_field_elements[0].send_keys(message_to_send)
-                        time.sleep(random.uniform(0.5, 1))
-                except NoSuchElementException:
-                    logging.info("Message field not found. Probably a no-note modal.")
+                    # Try to find and click the "Add a note" button if it exists
+                    add_note_button = self.short_wait.until(
+                        EC.element_to_be_clickable((By.XPATH, self.MODAL_ADD_NOTE_BUTTON_XPATH))
+                    )
+                    logging.info("Add note button found, clicking...")
+                    add_note_button.click()
+                    time.sleep(random.uniform(0.5, 1.5))
+
+                    # Find the note field and enter the message
+                    note_field = self.wait.until(
+                        EC.presence_of_element_located((By.XPATH, 
+                            f"//textarea[@id='{self.MODAL_CUSTOM_MESSAGE_ID}' or @name='message' or contains(@class, 'message')]"))
+                    )
+                    logging.info(f"Adding note: '{message_to_send[:30]}...'")
+                    note_field.clear()
+                    note_field.send_keys(message_to_send)
+                    time.sleep(random.uniform(0.5, 1))
+                except TimeoutException:
+                    logging.info("Add note button not found. Looking for direct message field...")
+                    try:
+                        # Some modals might have the note field directly visible
+                        note_field_elements = self.driver.find_elements(
+                            By.XPATH, 
+                            f"//textarea[@id='{self.MODAL_CUSTOM_MESSAGE_ID}' or @name='message' or contains(@class, 'message')]"
+                        )
+                        if note_field_elements and note_field_elements[0].is_displayed():
+                            logging.info(f"Adding note directly: '{message_to_send[:30]}...'")
+                            note_field_elements[0].clear()
+                            note_field_elements[0].send_keys(message_to_send)
+                            time.sleep(random.uniform(0.5, 1))
+                    except NoSuchElementException:
+                        logging.info("Note field not found. Sending without a note.")
+            else:
+                # In default mode, we want to click the 'Not olmadan gönderin' button
+                logging.info("Sending connection request without a note (default mode).")
+                
+                # Try to find and click the 'Not olmadan gönderin' button
+                try:
+                    # First try the exact Turkish text
+                    send_without_note = self.short_wait.until(
+                        EC.element_to_be_clickable((By.XPATH, 
+                            '//button[.//span[text()="Not olmadan gönderin"]] | '
+                            '//button[text()="Not olmadan gönderin"] | '
+                            '//button[contains(@aria-label, "Not olmadan gönderin")] | '
+                            # Fallback for English UI
+                            '//button[.//span[text()="Send without a note"]] | '
+                            '//button[text()="Send without a note"] | '
+                            '//button[contains(@aria-label, "Send without a note")] | '
+                            # More generic fallbacks
+                            '//button[contains(., "Not olmadan")] | '
+                            '//button[contains(., "without a note")] | '
+                            '//button[contains(., "Send") and not(contains(., "Add")) and not(contains(., "Note"))] | '
+                            '//button[contains(., "Gönder") and not(contains(., "Not"))]'))
+                    )
+                    logging.info("Found 'Not olmadan gönderin' button, clicking...")
+                    send_without_note.click()
+                    time.sleep(random.uniform(1, 2))
+                    return True
+                except (TimeoutException, NoSuchElementException) as e:
+                    logging.info(f"Could not find 'Not olmadan gönderin' button: {str(e)}, trying default send button...")
             
-            send_button_xpath_final = f"{self.MODAL_SEND_BUTTON_XPATH}[not(contains(@aria-label, 'Cancel') or contains(@aria-label, 'İptal')) and not(contains(@class, 'cancel'))]"
-            
-            send_button = self.wait.until(
-                EC.element_to_be_clickable((By.XPATH, send_button_xpath_final))
-            )
-            logging.info("Send button found, clicking...")
-            send_button.click()
-            time.sleep(random.uniform(1, 2))
+            # Find and click the send button
+            # First try to find a button that's not the cancel button
+            try:
+                send_button = self.wait.until(
+                    EC.element_to_be_clickable((By.XPATH, 
+                        f"{self.MODAL_SEND_BUTTON_XPATH}["
+                        "not(contains(@aria-label, 'Cancel') or contains(@aria-label, 'İptal')) "
+                        "and not(contains(@class, 'cancel'))]"
+                    ))
+                )
+                logging.info("Send button found, clicking...")
+                send_button.click()
+                time.sleep(random.uniform(1, 2))
+            except TimeoutException:
+                # If we can't find the main send button, try to find any button that says 'Send' or 'Gönder'
+                try:
+                    send_button = self.driver.find_element(
+                        By.XPATH,
+                        '//button[contains(., "Send") or contains(., "Gönder")] | '
+                        '//button[contains(@aria-label, "Send") or contains(@aria-label, "Gönder")] | '
+                        '//button[.//span[text()="Send" or text()="Gönder"]]'
+                    )
+                    if send_button.is_displayed() and send_button.is_enabled():
+                        logging.info("Alternative send button found, clicking...")
+                        send_button.click()
+                        time.sleep(random.uniform(1, 2))
+                    else:
+                        raise NoSuchElementException("Send button not clickable")
+                except (NoSuchElementException, ElementNotInteractableException) as e:
+                    logging.error(f"Could not find or click send button: {str(e)}")
+                    self._close_any_generic_modal()
+                    return False
             return True
 
         except TimeoutException:
@@ -856,6 +970,13 @@ def main():
         type=str,
         help="Custom note to send with connection requests."
     )
+    parser.add_argument(
+        "--use-notes",
+        action="store_true",
+        help="Send connection requests with notes (default: False)."
+    )
+    parser.set_defaults(headless=False, use_notes=False)
+    
     args = parser.parse_args()
     
     # Show help if requested
@@ -863,10 +984,10 @@ def main():
         show_help()
 
     # Default values
-    default_keywords = "cybersecurity expert"
+    default_keywords = "recruiter OR talent acquisition OR HR"
     default_max_requests = 30
-    default_note = "Hello! I found your profile interesting and would like to connect with you on LinkedIn. Best regards."
-    
+    default_note = ""  # Empty by default since we're not using notes
+
     # Use default values if quick start is selected
     if quick_choice in ['', '1']:
         print_info("\nStarting with default settings...")
@@ -881,7 +1002,10 @@ def main():
         effective_headless_mode = False
         print_info(f"Search Term: {args.keywords}")
         print_info(f"Maximum Requests: {args.max_requests}")
-        print_info(f"Connection Note: {args.note[:50]}...")
+        if args.use_notes and args.note:
+            print_info(f"Connection Note: {args.note[:50]}...")
+        else:
+            print_info("Connection Note: Not using notes (default)")
         print_info("Browser will run in visible mode.")
         print_success("\nStarting process...\n")
     else:
